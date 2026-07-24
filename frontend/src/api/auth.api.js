@@ -24,5 +24,15 @@ export const authApi = {
   resetPassword: async (token, newPassword) => {
     const response = await axiosInstance.post('/auth/reset-password', { token, newPassword });
     return response.data;
+  },
+
+  googleLogin: async (idToken) => {
+    const response = await axiosInstance.post('/auth/google', { idToken });
+    return response.data;
+  },
+
+  completeGoogleSignup: async (tempToken, role) => {
+    const response = await axiosInstance.post('/auth/google/complete', { tempToken, role });
+    return response.data;
   }
 };

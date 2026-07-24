@@ -139,3 +139,76 @@ export const resetPasswordSchema = {
     },
   },
 };
+
+export const googleLoginSchema = {
+  body: {
+    type: 'object',
+    required: ['idToken'],
+    properties: {
+      idToken: { type: 'string' },
+    },
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        data: {
+          type: 'object',
+          properties: {
+            isNewUser: { type: 'boolean' },
+            tempToken: { type: 'string' },
+            user: {
+              type: 'object',
+              properties: {
+                _id: { type: 'string' },
+                name: { type: 'string' },
+                email: { type: 'string' },
+                role: { type: 'string' },
+                avatarUrl: { type: 'string' },
+              },
+            },
+            accessToken: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+};
+
+export const googleCompleteSchema = {
+  body: {
+    type: 'object',
+    required: ['tempToken', 'role'],
+    properties: {
+      tempToken: { type: 'string' },
+      role: { type: 'string', enum: ['student', 'teacher'] },
+    },
+  },
+  response: {
+    201: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        data: {
+          type: 'object',
+          properties: {
+            user: {
+              type: 'object',
+              properties: {
+                _id: { type: 'string' },
+                name: { type: 'string' },
+                email: { type: 'string' },
+                role: { type: 'string' },
+                avatarUrl: { type: 'string' },
+              },
+            },
+            accessToken: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+};

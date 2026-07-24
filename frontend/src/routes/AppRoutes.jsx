@@ -10,6 +10,7 @@ import { Signup } from '../pages/auth/Signup.jsx';
 import { Unauthorized } from '../pages/auth/Unauthorized.jsx';
 import { ForgotPassword } from '../pages/auth/ForgotPassword.jsx';
 import { ResetPassword } from '../pages/auth/ResetPassword.jsx';
+import { SelectRole } from '../pages/auth/SelectRole.jsx';
 
 import { AdminDashboard } from '../pages/dashboard/AdminDashboard.jsx';
 import { StudentDashboard } from '../pages/dashboard/StudentDashboard.jsx';
@@ -34,6 +35,7 @@ export const AppRoutes = () => {
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/select-role" element={<SelectRole />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
 
       {/* Protected Routes inside Layout */}

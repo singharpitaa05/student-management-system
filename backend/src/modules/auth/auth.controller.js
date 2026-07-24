@@ -32,6 +32,31 @@ export const authController = {
     reply.send(response);
   },
 
+  async googleLogin(request, reply) {
+    const { idToken } = request.body;
+    const result = await authService.googleLogin(idToken);
+
+    if (result.isNewUser) {
+      const response = new ApiResponse(200, { isNewUser: true, tempToken: result.tempToken }, 'Choose a role to complete signup');
+      return reply.send(response);
+    }
+
+    setRefreshCookie(reply, result.refreshToken);
+
+    const response = new ApiResponse(200, { isNewUser: false, user: result.user, accessToken: result.accessToken }, 'Google login successful');
+    reply.send(response);
+  },
+
+  async completeGoogleSignup(request, reply) {
+    const { tempToken, role } = request.body;
+    const { user, accessToken, refreshToken } = await authService.completeGoogleSignup(tempToken, role);
+
+    setRefreshCookie(reply, refreshToken);
+
+    const response = new ApiResponse(201, { user, accessToken }, 'Google signup completed successfully');
+    reply.status(201).send(response);
+  },
+
   async refresh(request, reply) {
     const token = request.cookies.refreshToken;
     const { accessToken, refreshToken } = await authService.refreshToken(token);
@@ -70,3 +95,4 @@ export const authController = {
     reply.send(response);
   },
 };
+

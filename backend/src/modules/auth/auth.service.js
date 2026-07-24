@@ -1,11 +1,15 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { User } from '../../models/user.model.js';
 import { Student } from '../../models/student.model.js';
+import { Teacher } from '../../models/teacher.model.js';
 import { envConfig } from '../../config/env.config.js';
 import ApiError from '../../utils/apiError.js';
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../../emails/mailer.service.js';
+
+const googleClient = new OAuth2Client(envConfig.google.clientId);
 
 const generateTokens = (user) => {
   const payload = { userId: user._id, role: user.role };
@@ -89,6 +93,152 @@ export const authService = {
     };
   },
 
+  async googleLogin(idToken) {
+    // 1. Verify the Google ID token
+    let ticket;
+    try {
+      ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: envConfig.google.clientId,
+      });
+    } catch (err) {
+      throw new ApiError(401, 'Invalid Google token');
+    }
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    if (!email) {
+      throw new ApiError(400, 'Google account does not have an email');
+    }
+
+    // 2. Find existing user by googleId or email
+    let user = await User.findOne({
+      $or: [{ googleId }, { email }],
+    }).select('+refreshTokenHash');
+
+    if (user) {
+      // 3a. Existing user — link Google account if not already linked
+      let updated = false;
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.authProvider = 'google';
+        updated = true;
+      }
+      if (picture && !user.avatarUrl) {
+        user.avatarUrl = picture;
+        updated = true;
+      }
+      if (!user.isActive) {
+        throw new ApiError(401, 'Account is deactivated');
+      }
+
+      // Generate JWT tokens (same as regular login)
+      const { accessToken, refreshToken } = generateTokens(user);
+
+      const salt = await bcrypt.genSalt(10);
+      user.refreshTokenHash = await bcrypt.hash(refreshToken, salt);
+      await user.save();
+
+      return {
+        isNewUser: false,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatarUrl: user.avatarUrl,
+        },
+        accessToken,
+        refreshToken,
+      };
+    } else {
+      // 3b. New user — generate a temporary token containing verified info for role selection
+      const tempToken = jwt.sign(
+        { email, name, picture, googleId },
+        envConfig.jwt.accessSecret,
+        { expiresIn: '5m' } // Short-lived token
+      );
+
+      return {
+        isNewUser: true,
+        tempToken,
+      };
+    }
+  },
+
+  async completeGoogleSignup(tempToken, role) {
+    if (!['student', 'teacher'].includes(role)) {
+      throw new ApiError(400, 'Invalid role selected');
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(tempToken, envConfig.jwt.accessSecret);
+    } catch (err) {
+      throw new ApiError(400, 'Invalid or expired temporary registration token');
+    }
+
+    const { email, name, picture, googleId } = decoded;
+
+    // Double check if user exists
+    let existingUser = await User.findOne({
+      $or: [{ googleId }, { email }],
+    });
+    if (existingUser) {
+      throw new ApiError(409, 'User with this email already exists');
+    }
+
+    const randomPassword = crypto.randomBytes(32).toString('hex');
+    let user;
+
+    if (role === 'student') {
+      user = await Student.create({
+        name: name || email.split('@')[0],
+        email,
+        password: randomPassword,
+        role: 'student',
+        googleId,
+        authProvider: 'google',
+        avatarUrl: picture || '',
+        isEmailVerified: true,
+      });
+    } else if (role === 'teacher') {
+      user = await Teacher.create({
+        name: name || email.split('@')[0],
+        email,
+        password: randomPassword,
+        role: 'teacher',
+        googleId,
+        authProvider: 'google',
+        avatarUrl: picture || '',
+        isEmailVerified: true,
+      });
+    }
+
+    // Generate JWT tokens
+    const { accessToken, refreshToken } = generateTokens(user);
+
+    const salt = await bcrypt.genSalt(10);
+    user.refreshTokenHash = await bcrypt.hash(refreshToken, salt);
+    await user.save();
+
+    // Send welcome email asynchronously
+    sendWelcomeEmail(user.email, user.name).catch(console.error);
+
+    return {
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+      },
+      accessToken,
+      refreshToken,
+    };
+  },
+
   async refreshToken(token) {
     if (!token) {
       throw new ApiError(401, 'Refresh token not provided');
@@ -148,3 +298,4 @@ export const authService = {
     }
   }
 };
+

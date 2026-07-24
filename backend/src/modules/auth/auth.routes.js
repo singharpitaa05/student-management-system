@@ -44,4 +44,7 @@ export default async function authRoutes(fastify, options) {
   );
 
   fastify.post('/reset-password', { schema: schemas.resetPasswordSchema }, authController.resetPassword);
+
+  fastify.post('/google', { schema: schemas.googleLoginSchema }, authController.googleLogin);
+  fastify.post('/google/complete', { schema: schemas.googleCompleteSchema }, authController.completeGoogleSignup);
 }

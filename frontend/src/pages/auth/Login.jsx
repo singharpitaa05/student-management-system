@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { authApi } from '../../api/auth.api.js';
 import { useAuthStore } from '../../stores/useAuthStore.js';
+import { toast } from 'react-toastify';
 import './Auth.css';
 
 export const Login = () => {
@@ -32,6 +34,32 @@ export const Login = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('');
+    setLoading(true);
+    try {
+      const response = await authApi.googleLogin(credentialResponse.credential);
+      const data = response.data;
+
+      if (data.isNewUser) {
+        toast.info('Google authentication successful! Please select your role.');
+        navigate('/select-role', { state: { tempToken: data.tempToken } });
+      } else {
+        setAuth(data.user, data.accessToken);
+        toast.success(`Welcome back, ${data.user.name}!`);
+        navigate(`/${data.user.role}/dashboard`, { replace: true });
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Google Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('Google authentication failed. Please try again.');
   };
 
   return (
@@ -76,6 +104,22 @@ export const Login = () => {
             {loading ? 'Logging in...' : 'Log In'}
           </button>
         </form>
+
+        <div className="auth-divider">
+          <span>or</span>
+        </div>
+
+        <div className="google-btn-wrapper">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleError}
+            theme="filled_blue"
+            size="large"
+            text="signin_with"
+            shape="rectangular"
+            width="100%"
+          />
+        </div>
         
         <p className="auth-footer">
           Don't have an account? <Link to="/signup" className="auth-link">Sign up</Link>
